@@ -1,12 +1,122 @@
-function bla()
-
 local auraID = "0CleanerTemplate"
 local tempAuraID = auraID .. " - hopefully unused name"
 local cleanedAuraID = auraID .. " - Cleaned"
 print("cleaning \""..auraID.."\"")
 
+local function createCopyOnReadMetatable(original, tableToCopyTo)
+	local mt = {}
+	mt.__index = function(table, key)
+		--if key == "customTriggerLogic" then print("here") end
+		--print("index", key)
+		local value = original[key]
+		if value == nil then return value end
+		if type(value) == "table" then
+			if not getmetatable(value) or not getmetatable(value).__isCopyOnWrite then
+				--print("table access")
+				local copyTable = {}
+				local meta = createCopyOnReadMetatable(value, copyTable)
+				tableToCopyTo[key] = copyTable
+				original[key] = meta
+
+				for i,v in ipairs(value) do
+					if type(v) == "table" then
+						local copyTable2 = {}
+						local meta2 = createCopyOnReadMetatable(v, copyTable2)
+						copyTable[i] = copyTable2
+						meta[i] = meta2
+					else
+						copyTable[i] = v
+					end
+				end
+
+				return meta
+			end
+		else
+			tableToCopyTo[key] = value
+		end
+		return value
+	end
+	-- Not in 5.2 :(
+	--mt.__pairs = function(table)
+		--return next, original, nil
+	--end
+	mt.__isCopyOnWrite = true
+	return setmetatable({}, mt)
+end
+
+local tableDiff
+do
+	local separator = "      "
+	local previous_tostring = tostring
+	local function tostring(arg)
+		if type(arg) == "table" then
+			return "{}"
+		end
+		return previous_tostring(arg)
+	end
+	tableDiff = function(original, modified, path)
+		path = path or ""
+		local changed = false
+		local contents = {}
+		for i,v in pairs(original) do
+			if not contents[i] then contents[i] = {original=type(v)}
+			else contents[i].original = type(v) end
+			if type(v) == "table" then
+				contents[i].originalChild = v
+			end
+		end
+		for i,v in pairs(modified) do
+			if not contents[i] then contents[i] = {modified=type(v)}
+			else contents[i].modified = type(v) end
+			if type(v) == "table" then
+				contents[i].modifiedChild = v
+			end
+		end
+
+		for i,v in pairs(contents) do
+			local newPath = path.."."..i
+			local bothAreTables = v.original == "table" and v.modified == "table"
+			if bothAreTables then
+				-- TODO pass back invocation's contents table, store somewhere.
+				local childrenChanged = tableDiff(v.originalChild, v.modifiedChild, newPath)
+				if childrenChanged then
+					changed = true
+				else
+					-- discard
+					--contents[i] = nil
+				end
+			else
+				if v.original and v.modified then
+					if original[i] ~= modified[i] then
+						changed = true
+						print("M "..newPath..separator..tostring(original[i]).." -> "..tostring(modified[i]))
+					else
+						-- discard
+						--contents[i] = nil
+					end
+					--tableDiff(v.originalChild, v.modifiedChild, path.."."..i)
+				elseif v.original then
+					changed = true
+					print("- "..newPath..separator..tostring(original[i]))
+				elseif v.modified then
+					changed = true
+					print("+ "..newPath..separator..tostring(modified[i]))
+				else error("bla") end
+
+				if v.original == "table" then
+					tableDiff(v.originalChild, {}, newPath)
+				end
+				if v.modified == "table" then
+					tableDiff({}, v.modifiedChild, newPath)
+				end
+			end
+		end
+
+		return changed
+	end
+end
+
 local function addAura(data)
-	print("adding " .. data.id)
 	WeakAurasSaved.displays[data.id] = meta
 	WeakAuras.Add(data)
 	WeakAuras.AddDisplayButton(data)
@@ -14,8 +124,7 @@ end
 
 local function deleteAura(id)
 	if WeakAurasSaved.displays[id] then
-		WeakAuras.Delete(WeakAurasSaved.displays[id])
-		WeakAurasSaved.displays[id] = nil
+		WeakAuras.DeleteOption(WeakAurasSaved.displays[id])
 	end
 end
 
@@ -24,43 +133,36 @@ if (WeakAuras.IsOptionsOpen()) then WeakAuras.OpenOptions() else WeakAuras.OpenO
 deleteAura(cleanedAuraID)
 deleteAura(tempAuraID)
 
-auraCopy = {}
 originalAura = WeakAurasSaved.displays[auraID]
-
+ViragDevTool_AddData(originalAura, "originalAura")
 local dataCopy = {}
 WeakAuras.DeepCopy(originalAura, dataCopy) -- TODO figure out why DeepCopy doesn't work.
 dataCopy.id = tempAuraID
-
+auraCopy = {}
+ViragDevTool_AddData(auraCopy, "auraCopy")
 meta = createCopyOnReadMetatable(dataCopy, auraCopy)
 
 addAura(meta)
 
---meta = createCopyOnReadMetatable(originalAura, auraCopy)
---WeakAurasSaved.displays[tempAuraID] = meta
-
 local actions = {
 function() WeakAuras.OpenOptions() end,
 function() WeakAuras.PickDisplay(tempAuraID) end,
-function() AceGUITabGroup1Tab1:Click() end,
-function() AceGUITabGroup1Tab2:Click() end, -- Triggers.
-function() AceGUITabGroup1Tab3:Click() end,
-function() AceGUITabGroup1Tab4:Click() end,
-function() AceGUITabGroup1Tab5:Click() end,
-function() AceGUITabGroup1Tab6:Click() end,
-function()
-	--WeakAurasSaved.displays[tempAuraID] = originalAura
-
-	ViragDevTool_AddData(dataCopy, "dataCopy")
-	ViragDevTool_AddData(meta, "meta")
-
-	ViragDevTool_AddData(originalAura, "originalAura")
-	ViragDevTool_AddData(auraCopy, "auraCopy")
-end,
+--function() AceGUITabGroup1Tab1:Click() end,
+--function() AceGUITabGroup1Tab2:Click() end, -- Triggers.
+--function() AceGUITabGroup1Tab3:Click() end,
+--function() AceGUITabGroup1Tab4:Click() end,
+--function() AceGUITabGroup1Tab5:Click() end,
+--function() AceGUITabGroup1Tab6:Click() end,
 function() WeakAuras.OpenOptions() end,
 function()
-	addAura(auraCopy)
+	local cleanedAura = {}
+	WeakAuras.DeepCopy(auraCopy, cleanedAura)
+	cleanedAura.id = cleanedAuraID
+	addAura(cleanedAura)
+	deleteAura(tempAuraID)
 
-	tableDiff(originalAura, auraCopy)
+	print("differences between original and cleaned aura:")
+	tableDiff(originalAura, cleanedAura)
 
 	WowLuaFrameEditBox:SetText(s)
 	print("done")
@@ -70,20 +172,14 @@ end,
 local function performActions(actions, index)
 	index = index or 1
 	if index == #actions + 1 then return end
-	C_Timer.After(.2, function()
-		print("performing action "..index)
+	C_Timer.After(0, function()
+		--print("performing action "..index)
 		actions[index]()
 		performActions(actions, index + 1)
 	end)
 end
 
 performActions(actions)
-
-print("success!")
-
-end
-
-bla()
 --[[
 /script tableDiff(originalAura, auraCopy)
 /script WeakAurasSaved.displays["0CleanerTemplate - hopefully unused name"] = nil
