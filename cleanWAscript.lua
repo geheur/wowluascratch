@@ -1,3 +1,4 @@
+function bla()
 local auraID = "0CleanerTemplate"
 local tempAuraID = auraID .. " - hopefully unused name"
 local cleanedAuraID = auraID .. " - Cleaned"
@@ -7,6 +8,7 @@ local function createCopyOnReadMetatable(original, tableToCopyTo)
 	local mt = {}
 	mt.__index = function(table, key)
 		--if key == "customTriggerLogic" then print("here") end
+		--if key == "customTriggerLogic" then local a = {} a[nil] = 0 print("here") end
 		--print("index", key)
 		local value = original[key]
 		if value == nil then return value end
@@ -117,20 +119,34 @@ do
 end
 
 local function addAura(data)
-	WeakAurasSaved.displays[data.id] = meta
+	WeakAurasSaved.displays[data.id] = data
+	WeakAuras.Add(data)
+	--WeakAuras.AddDisplayButton(data)
+end
+
+local function addAuraAndDisplay(data)
+	WeakAurasSaved.displays[data.id] = data
 	WeakAuras.Add(data)
 	WeakAuras.AddDisplayButton(data)
 end
 
 local function deleteAura(id)
 	if WeakAurasSaved.displays[id] then
+		--WeakAuras.DeleteOption(WeakAurasSaved.displays[id])
+		WeakAuras.Delete(WeakAurasSaved.displays[id])
+	end
+end
+
+local function deleteAuraAndDisplay(id)
+	if WeakAurasSaved.displays[id] then
 		WeakAuras.DeleteOption(WeakAurasSaved.displays[id])
+		--WeakAuras.Delete(WeakAurasSaved.displays[id])
 	end
 end
 
 if (WeakAuras.IsOptionsOpen()) then WeakAuras.OpenOptions() else WeakAuras.OpenOptions() WeakAuras.OpenOptions() end
 
-deleteAura(cleanedAuraID)
+deleteAuraAndDisplay(cleanedAuraID)
 deleteAura(tempAuraID)
 
 originalAura = WeakAurasSaved.displays[auraID]
@@ -142,48 +158,26 @@ auraCopy = {}
 ViragDevTool_AddData(auraCopy, "auraCopy")
 meta = createCopyOnReadMetatable(dataCopy, auraCopy)
 
+
 addAura(meta)
 
-local actions = {
-function() WeakAuras.OpenOptions() end,
-function() WeakAuras.PickDisplay(tempAuraID) end,
---function() AceGUITabGroup1Tab1:Click() end,
---function() AceGUITabGroup1Tab2:Click() end, -- Triggers.
---function() AceGUITabGroup1Tab3:Click() end,
---function() AceGUITabGroup1Tab4:Click() end,
---function() AceGUITabGroup1Tab5:Click() end,
---function() AceGUITabGroup1Tab6:Click() end,
-function() WeakAuras.OpenOptions() end,
-function()
-	local cleanedAura = {}
-	WeakAuras.DeepCopy(auraCopy, cleanedAura)
-	cleanedAura.id = cleanedAuraID
-	addAura(cleanedAura)
-	deleteAura(tempAuraID)
+local cleanedAura = {}
+WeakAuras.DeepCopy(auraCopy, cleanedAura)
+cleanedAura.id = cleanedAuraID
 
-	print("differences between original and cleaned aura:")
-	tableDiff(originalAura, cleanedAura)
+addAuraAndDisplay(cleanedAura)
+deleteAura(tempAuraID)
 
-	WowLuaFrameEditBox:SetText(s)
-	print("done")
-end,
-}
-
-local function performActions(actions, index)
-	index = index or 1
-	if index == #actions + 1 then return end
-	C_Timer.After(0, function()
-		--print("performing action "..index)
-		actions[index]()
-		performActions(actions, index + 1)
-	end)
+print("differences between original and cleaned aura:")
+tableDiff(originalAura, cleanedAura)
 end
 
-performActions(actions)
+C_Timer.After(0, bla)
 --[[
 /script tableDiff(originalAura, auraCopy)
 /script WeakAurasSaved.displays["0CleanerTemplate - hopefully unused name"] = nil
 /script WeakAurasSaved.displays["0CleanerTemplate - Cleaned"] = nil
+/script WeakAurasSaved.displays["Seals - hopefully unused name"] = nil
 /script ViragDevTool_AddData(WeakAurasSaved.displays["0Event"], "aura")
 /script WeakAurasSaved.displays["Seals 2 - hopefully unused name"] = nil
 
